@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Users, Search, Plus, Filter, LogOut, Eye } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import LeadDetail from './LeadDetail';
+import LeadForm from './LeadForm';
 
 interface Lead {
   id: string;
@@ -27,63 +30,37 @@ const Dashboard = ({ onLogout }: DashboardProps) => {
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [showLeadForm, setShowLeadForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Mock data para demonstração
+  // Buscar leads do Supabase
   useEffect(() => {
-    // Simulando carregamento de dados do Supabase
-    const mockLeads: Lead[] = [
-      {
-        id: '1',
-        nome_completo: 'João Silva Santos',
-        email: 'joao.silva@email.com',
-        telefone: '11999887766',
-        status: 'Novo',
-        created_at: '2024-01-15'
-      },
-      {
-        id: '2',
-        nome_completo: 'Maria Oliveira Costa',
-        email: 'maria.oliveira@email.com',
-        telefone: '11888776655',
-        status: 'Em Contato',
-        observacoes: 'Interessada em nossos serviços premium',
-        created_at: '2024-01-14'
-      },
-      {
-        id: '3',
-        nome_completo: 'Pedro Rodrigues Lima',
-        email: 'pedro.lima@email.com',
-        telefone: '11777665544',
-        status: 'Convertido',
-        proximo_passo: 'Agendar reunião de onboarding',
-        created_at: '2024-01-13'
-      },
-      {
-        id: '4',
-        nome_completo: 'Ana Carolina Ferreira',
-        email: 'ana.ferreira@email.com',
-        telefone: '11666554433',
-        status: 'Novo',
-        created_at: '2024-01-12'
-      },
-      {
-        id: '5',
-        nome_completo: 'Carlos Eduardo Souza',
-        email: 'carlos.souza@email.com',
-        telefone: '11555443322',
-        status: 'Em Contato',
-        observacoes: 'Precisa de mais informações sobre preços',
-        created_at: '2024-01-11'
-      }
-    ];
-
-    setTimeout(() => {
-      setLeads(mockLeads);
-      setFilteredLeads(mockLeads);
-      setLoading(false);
-    }, 1000);
+    fetchLeads();
   }, []);
+
+  const fetchLeads = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setLeads(data || []);
+      setFilteredLeads(data || []);
+    } catch (error) {
+      console.error('Erro ao buscar leads:', error);
+      toast({
+        title: "Erro ao carregar leads",
+        description: "Não foi possível carregar os leads. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const filtered = leads.filter(lead =>
@@ -113,6 +90,10 @@ const Dashboard = ({ onLogout }: DashboardProps) => {
       )
     );
     setSelectedLead(updatedLead);
+  };
+
+  const handleLeadCreated = (newLead: Lead) => {
+    setLeads(prevLeads => [newLead, ...prevLeads]);
   };
 
   if (selectedLead) {
@@ -203,10 +184,19 @@ const Dashboard = ({ onLogout }: DashboardProps) => {
           </Card>
         </div>
 
-        {/* Search and Filters */}
+        {/* Search and Create Button */}
         <Card className="gradient-card border-0 shadow-lg mb-8 animate-slide-up">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">Buscar Leads</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-900">Buscar Leads</CardTitle>
+              <Button 
+                onClick={() => setShowLeadForm(true)}
+                className="bg-primary-600 hover:bg-primary-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Criar Lead
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="relative">
@@ -237,6 +227,16 @@ const Dashboard = ({ onLogout }: DashboardProps) => {
               <div className="text-center py-12">
                 <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 text-lg">Nenhum lead encontrado</p>
+                {leads.length === 0 && (
+                  <Button 
+                    onClick={() => setShowLeadForm(true)}
+                    className="mt-4"
+                    variant="outline"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Criar seu primeiro lead
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -284,6 +284,14 @@ const Dashboard = ({ onLogout }: DashboardProps) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lead Form Modal */}
+      {showLeadForm && (
+        <LeadForm 
+          onClose={() => setShowLeadForm(false)}
+          onLeadCreated={handleLeadCreated}
+        />
+      )}
     </div>
   );
 };
